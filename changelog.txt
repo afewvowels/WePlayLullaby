@@ -1,4 +1,84 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.5.5
+Date: 2026-11-16
+  Changes:
+    - The swirls over entranced enemies always show, whatever your Lullaby visual effects setting; it now only hides the rays, glow and night light.
+---------------------------------------------------------------------------------------------------
+Version: 0.5.4
+Date: 2026-11-16
+  Graphics:
+    - The streaks fade out along each ray: streaky near you, blending into solid colour toward the outer end.
+---------------------------------------------------------------------------------------------------
+Version: 0.5.3
+Date: 2026-11-16
+  Graphics:
+    - More organic streaks: the lines are softened slightly, wander a little along their length, shimmer (each line flickers on its own timing) and slowly fade between two line patterns over the loop.
+---------------------------------------------------------------------------------------------------
+Version: 0.5.2
+Date: 2026-11-16
+  Graphics:
+    - Streaky rays: each ray is filled with fine black, grey and white lines running along it, like brushed light. The lines ride the rays, flow slowly outward over the loop, and light up as each pulse's wave passes. Replaces the experimental halftone.
+---------------------------------------------------------------------------------------------------
+Version: 0.5.1
+Date: 2026-11-16
+  Graphics:
+    - Experimental halftone rays: the rays are built from dots on a polar grid that rides the rays, sized by the ray's brightness. Between pulses the dots vibrate in place; each pulse's wave shoves them outward and sideways as it passes. (tools/lullaby_styles.py; "python tools/lullaby_rays.py sheet" restores the solid rays.)
+    - Two-colour gap fill from 0.5.0 turned off by default (TWO_COLOR in balance.lua).
+---------------------------------------------------------------------------------------------------
+Version: 0.5.0
+Date: 2026-11-16
+  Graphics:
+    - Two-colour rays (experimental): the bands between the gold rays now glow light blue, with their own drifting smoke, sharing the same ragged edges, twist, jagged wave and depth fade. Colour, strength and on/off are in balance.lua (TWO_COLOR, RAY_COLOR_B, RAY_B_STRENGTH).
+---------------------------------------------------------------------------------------------------
+Version: 0.4.5
+Date: 2026-11-16
+  Changes:
+    - Shuts off much sooner when you leave enemies behind (jetpacks!): half a second with nothing within 20 tiles starts the wind-down straight away instead of waiting for pulses, and the fade is a little quicker. Fully off in about a second.
+---------------------------------------------------------------------------------------------------
+Version: 0.4.4
+Date: 2026-11-16
+  Changes:
+    - Trances wear off: an entranced biter or spitter wakes up fully after 30 seconds (new map setting, 5-300 s), even if it hasn't reached you, so backing away slowly can no longer keep a crowd under forever. Scuttles don't reset the timer, and they struggle harder as it runs out.
+---------------------------------------------------------------------------------------------------
+Version: 0.4.3
+Date: 2026-11-16
+  Changes:
+    - Mod title uses an em dash: WePlay: Lullaby — Crowd Control Equipment.
+---------------------------------------------------------------------------------------------------
+Version: 0.4.2
+Date: 2026-11-16
+  Features:
+    - New per-player settings: Lullaby sounds and Lullaby visual effects. Each only affects the player who changes it; the effect itself keeps working with either turned off.
+---------------------------------------------------------------------------------------------------
+Version: 0.4.1
+Date: 2026-11-16
+  Changes:
+    - Charging biters are now stopped right at the edge of the sleep radius (about 9-10 tiles out), so you get the full range and time. An active Lullaby checks the edge every 3 ticks, and biters are caught up to a tile outside it.
+    - Lullaby starts sooner: it wakes up as soon as any biter or spitter is within 20 tiles (checked every 10 ticks), and catches anything already in range the moment it wakes.
+---------------------------------------------------------------------------------------------------
+Version: 0.4.0
+Date: 2026-11-16
+  Graphics:
+    - Inverse-square falloff: the rays are brightest close to you and fade out like real light, reaching zero at the edge of the sleep radius (half brightness at 60% of the way out). Ray and bloom brightness raised about 2.2x to match.
+    - The far half (behind you, toward the top of the screen) now fades down to a tenth of the brightness and goes soft, so it doesn't call attention to itself. The near half stays full and sharp.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.4
+Date: 2026-11-16
+  Features:
+    - New map setting for testing: Disable effect cooldown. Enemies can be entranced again as soon as they wake and worms can be hushed again; turning it on clears all current immunities.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.3
+Date: 2026-11-16
+  Graphics:
+    - Stronger depth: the rays, bloom and night light fade to a quarter brightness toward the top of the screen.
+  Tools:
+    - The build scripts run without arguments: lullaby_rays.py builds all three ray sheets and lullaby_swirl.py the swirl into ../graphics/entity; lullaby_sounds.py only needs the clip path and writes to ../sounds.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.2
+Date: 2026-11-16
+  Changes:
+    - Entranced biters and spitters now actually walk when they scuttle closer or are drawn in, so their walk animations play. Each walk is watched every tick and they freeze again the moment they've gone far enough, reach point blank or run out of time. A walk that gets stuck finishes as a glide.
+---------------------------------------------------------------------------------------------------
 Version: 0.3.1
 Date: 2026-11-16
   Graphics:

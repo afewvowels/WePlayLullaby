@@ -1,4 +1,4 @@
--- WePlay: Lullaby -- Crowd Control Equipment
+-- WePlay: Lullaby — Crowd Control Equipment
 --
 -- One Lullaby per wearer sings in pulses (once a second) while enemies are near:
 --   sleep layer  (B.SLEEP_RADIUS): biters and spitters are frozen in place, twitching.
@@ -17,6 +17,8 @@ local B = require("balance")
 local EQUIPMENT = "wp-lullaby-equipment"
 local RAYS = "wp-lullaby-rays"
 local BLOOM = "wp-lullaby-rays-bloom"
+local RAYS_B = "wp-lullaby-rays-b"
+local BLOOM_B = "wp-lullaby-rays-b-bloom"
 local LIGHT_PREFIX = "wp-lullaby-ray-light-"
 local LIGHT_FRAMES = 20
 local SWIRL = "wp-lullaby-swirl"
@@ -40,7 +42,13 @@ end
 -- Helpers
 ---------------------------------------------------------------------------
 
+-- Testing: no immunity at all, and worms can be hushed again right away.
+local function cooldown_disabled()
+  return settings.global["wp-lullaby-disable-cooldown"].value
+end
+
 local function immunity_ticks()
+  if cooldown_disabled() then return 0 end
   return settings.global["wp-lullaby-immunity-seconds"].value * 60
 end
 
@@ -49,7 +57,7 @@ local function flash_strength()
 end
 
 local function worm_reentrance()
-  return settings.global["wp-lullaby-worm-reentrance"].value
+  return cooldown_disabled() or settings.global["wp-lullaby-worm-reentrance"].value
 end
 
 local function dist(a, b)
@@ -152,6 +160,50 @@ local function blocked(e, p)
 end
 
 ---------------------------------------------------------------------------
+-- Per-player sound and graphics settings
+---------------------------------------------------------------------------
+
+local function player_wants(player, setting)
+  local ok, value = pcall(function() return player.mod_settings[setting].value end)
+  return not ok or value ~= false
+end
+
+-- Who sees the effects: {all = true}, {none = true}, or {list = {player indices}}.
+-- Cached; rebuilt when a setting changes or a player joins or leaves.
+local view_cache
+local function viewers()
+  if view_cache then return view_cache end
+  local list, everyone = {}, true
+  for _, player in pairs(game.connected_players) do
+    if player_wants(player, "wp-lullaby-graphics") then
+      list[#list + 1] = player.index
+    else
+      everyone = false
+    end
+  end
+  if everyone then view_cache = {all = true, list = list}
+  elseif #list == 0 then view_cache = {none = true}
+  else view_cache = {list = list} end
+  return view_cache
+end
+
+-- New objects are visible to everyone by default, so they only need changing when
+-- someone has graphics off. Existing objects (refresh) always get an explicit list.
+local function apply_view(obj, refresh)
+  if not (obj and obj.valid) then return obj end
+  local v = viewers()
+  if v.none then
+    obj.visible = false
+  elseif v.all and not refresh then
+    return obj
+  else
+    obj.visible = true
+    obj.players = v.list
+  end
+  return obj
+end
+
+---------------------------------------------------------------------------
 -- Swirl over entranced enemies
 ---------------------------------------------------------------------------
 
@@ -160,6 +212,8 @@ local function draw_swirl(e)
   local top = box and box.left_top and box.left_top.y or -0.8
   local size = box and (box.right_bottom.x - box.left_top.x) or 1
   local scale = B.SWIRL_SCALE * math.max(0.8, math.min(1.6, size))
+  -- Swirls are gameplay information (who's entranced), so everyone always sees them,
+  -- whatever their visual effects setting.
   return rendering.draw_animation({
     animation = SWIRL,
     target = {entity = e, offset = {0, top - 0.55 * scale * 2}},
@@ -173,11 +227,22 @@ local function draw_swirl(e)
   })
 end
 
+local function trance_ticks()
+  return settings.global["wp-lullaby-max-trance-seconds"].value * 60
+end
+
+-- How close an entranced enemy is to breaking free (0..1): whichever is further
+-- along, its scuttle chance or its time in the trance.
+local function struggle(rec)
+  local by_chance = math.min(1, (rec.chance or 0) / 0.6)
+  local by_time = rec.since and math.min(1, (game.tick - rec.since) / trance_ticks()) or 0
+  return math.max(by_chance, by_time ^ 2)
+end
+
 local function set_swirl_speed(rec)
   local s = rec.swirl
   if s and s.valid then
-    local struggle = math.min(1, (rec.chance or 0) / 0.6)
-    s.animation_speed = B.SWIRL_SPEED + B.SWIRL_SPEED_STRUGGLE * struggle
+    s.animation_speed = B.SWIRL_SPEED + B.SWIRL_SPEED_STRUGGLE * struggle(rec)
   end
 end
 
@@ -185,9 +250,9 @@ end
 -- Ground effect and glow
 ---------------------------------------------------------------------------
 
-local function ray_tint(level)
-  -- The ray animation uses additive blending, so the tint is just brightness.
-  local c = B.RAY_COLOR
+local function ray_tint(level, color)
+  -- The ray animations use additive blending, so the tint is just brightness.
+  local c = color or B.RAY_COLOR
   return {r = c.r * level, g = c.g * level, b = c.b * level, a = level}
 end
 
@@ -211,12 +276,12 @@ local function draw_rays(w, animation, scale)
   for _, layer in pairs(B.RAY_LAYERS) do
     args.render_layer = layer
     local ok, obj = pcall(rendering.draw_animation, args)
-    if ok and obj then return obj end
+    if ok and obj then return apply_view(obj) end
   end
 end
 
 local function draw_glow(w)
-  return rendering.draw_light({
+  return apply_view(rendering.draw_light({
     sprite = "utility/light_medium",
     target = w.center,
     surface = w.center.surface,
@@ -224,7 +289,7 @@ local function draw_glow(w)
     intensity = 0,
     minimum_darkness = 0,
     color = B.GLOW_COLOR,
-  })
+  }))
 end
 
 local function light_frame(w, tick)
@@ -234,7 +299,7 @@ end
 
 local function draw_ray_light(w)
   w.light_frame = light_frame(w, game.tick)
-  return rendering.draw_light({
+  return apply_view(rendering.draw_light({
     sprite = LIGHT_PREFIX .. w.light_frame,
     target = w.center,
     surface = w.center.surface,
@@ -243,18 +308,23 @@ local function draw_ray_light(w)
     intensity = 0,
     minimum_darkness = 0.3,
     color = B.RAY_COLOR,
-  })
+  }))
 end
 
 local function draw_all(w)
   w.rays = draw_rays(w, RAYS, ray_scale())
   w.bloom = draw_rays(w, BLOOM, ray_scale() * 2)
+  if B.TWO_COLOR then
+    w.rays_b = draw_rays(w, RAYS_B, ray_scale())
+    w.bloom_b = draw_rays(w, BLOOM_B, ray_scale() * 2)
+  end
   w.ray_light = draw_ray_light(w)
   w.glow = draw_glow(w)
 end
 
 local function destroy_all(w)
   destroy(w.rays); destroy(w.bloom); destroy(w.ray_light); destroy(w.glow)
+  destroy(w.rays_b); destroy(w.bloom_b)
 end
 
 
@@ -278,6 +348,13 @@ local function update_visuals(w, tick)
   end
   if w.bloom and w.bloom.valid then
     w.bloom.color = ray_tint(level * (B.BLOOM_BRIGHTNESS + B.BLOOM_FLASH * flash))
+  end
+  local kb = level * B.RAY_B_STRENGTH
+  if w.rays_b and w.rays_b.valid then
+    w.rays_b.color = ray_tint(kb * (B.RAY_BRIGHTNESS + B.RAY_FLASH * flash), B.RAY_COLOR_B)
+  end
+  if w.bloom_b and w.bloom_b.valid then
+    w.bloom_b.color = ray_tint(kb * (B.BLOOM_BRIGHTNESS + B.BLOOM_FLASH * flash), B.RAY_COLOR_B)
   end
   if w.ray_light and w.ray_light.valid then
     local f = light_frame(w, tick)
@@ -341,6 +418,7 @@ local function entrance(w, e)
     entity = e,
     home = e.position,
     chance = B.SCUTTLE_CHANCE,
+    since = game.tick,      -- when the trance started (scuttles don't reset it)
     scuttle_left = 0,
     drawing = false,
     swirl = draw_swirl(e),
@@ -369,6 +447,54 @@ local function glide(w, rec, step)
   return step
 end
 
+-- Let an entranced unit walk (so its walk animation plays) up to `distance` tiles
+-- toward the wearer, with distraction off. It's watched every tick and frozen again
+-- the moment it has gone far enough, gets to point blank, stalls or runs out of time.
+-- With B.WALK off, or if it stalls, it glides the rest of the way instead.
+local function start_move(w, rec, distance)
+  local e = rec.entity
+  local p, c = e.position, w.center.position
+  local d = dist(p, c)
+  distance = math.min(distance, d - wake_distance(w) + 0.05)
+  if distance < 0.05 then return end
+  if not B.WALK then
+    rec.scuttle_left = distance
+    return
+  end
+  local dest = {x = p.x + (c.x - p.x) / d * distance, y = p.y + (c.y - p.y) / d * distance}
+  set_disabled(e, false)
+  command(e, {type = defines.command.go_to_location, destination = dest, radius = 0.25,
+              distraction = defines.distraction.none})
+  rec.walk = {start = p, left = distance, last_d = d, stall = 0,
+              ends = game.tick + math.ceil(distance / B.WALK_MIN_SPEED) + 10}
+end
+
+local function stop_walk(rec, glide_rest)
+  local e = rec.entity
+  local walk = rec.walk
+  rec.walk = nil
+  command(e, {type = defines.command.stop, distraction = defines.distraction.none})
+  set_disabled(e, true)
+  rec.home = e.position
+  if glide_rest then
+    rec.scuttle_left = math.max(0, walk.left - dist(e.position, walk.start))
+  end
+end
+
+local function update_walk(w, rec, tick)
+  local e = rec.entity
+  local walk = rec.walk
+  local p = e.position
+  local dc = dist(p, w.center.position)
+  if dc < walk.last_d - 0.005 then walk.stall = 0 else walk.stall = walk.stall + 1 end
+  walk.last_d = dc
+  if dist(p, walk.start) >= walk.left - 0.05 or dc <= wake_distance(w) or tick >= walk.ends then
+    stop_walk(rec, false)
+  elseif walk.stall >= B.WALK_STALL_TICKS then
+    stop_walk(rec, true)   -- blocked or wandering off: glide the rest
+  end
+end
+
 ---------------------------------------------------------------------------
 -- Wearer lifecycle
 ---------------------------------------------------------------------------
@@ -389,9 +515,24 @@ local function shut_down(w)
   storage.wearers[w.player_index] = nil
 end
 
+-- Played only to players who have Lullaby's sound on.
 local function play(w, path)
-  if w.center and w.center.valid then
-    w.center.surface.play_sound({path = path, position = w.center.position})
+  if not (w.center and w.center.valid) then return end
+  local surface, pos = w.center.surface, w.center.position
+  local listeners, everyone = {}, true
+  for _, player in pairs(game.connected_players) do
+    if player_wants(player, "wp-lullaby-sound") then
+      listeners[#listeners + 1] = player
+    else
+      everyone = false
+    end
+  end
+  if everyone then
+    surface.play_sound({path = path, position = pos})
+  else
+    for _, player in pairs(listeners) do
+      if player.surface == surface then player.play_sound({path = path, position = pos}) end
+    end
   end
 end
 
@@ -404,6 +545,7 @@ local function activate(player, center)
     next_beat = tick + B.START_TICKS,
     first_beat = tick + B.START_TICKS,
     idle_pulses = 0,
+    last_near = tick,
   }
   draw_all(w)
   storage.wearers[player.index] = w
@@ -412,18 +554,41 @@ end
 
 -- Is this unit one the song should take? Biters in the sleep layer, spitters in the lure layer.
 local function wants(e, d)
-  if d <= B.SLEEP_RADIUS then return true end
+  if d <= B.SLEEP_RADIUS + B.CATCH_MARGIN then return true end
   return d <= B.LURE_RADIUS and proto_info(e).ranged
 end
 
--- Proximity: Lullaby plays while biters are in the sleep layer or spitters in the
--- lure layer, entranced or not. Worms alone don't wake it or keep it going.
+-- Proximity: Lullaby plays while any biter or spitter is within the lure radius,
+-- entranced or not, so it's already singing when charging biters reach the sleep
+-- layer. Worms alone don't wake it or keep it going.
 local function anything_in_range(center, forces)
-  local surface, pos = center.surface, center.position
-  for _, e in pairs(surface.find_entities_filtered({position = pos, radius = B.LURE_RADIUS, type = "unit", force = forces})) do
-    if wants(e, dist(e.position, pos)) then return true end
+  return #center.surface.find_entities_filtered({position = center.position, radius = B.LURE_RADIUS,
+                                                 type = "unit", force = forces, limit = 1}) > 0
+end
+
+-- Entrance any new biters in the sleep layer and spitters in the lure layer. Runs
+-- every few ticks while active (not just on pulses), because a charging biter covers
+-- several tiles a second. Returns whether any enemy unit is within the lure radius.
+local function catch_new(w, forces, radius)
+  local tick = game.tick
+  local center = w.center
+  local pos = center.position
+  local wake = wake_distance(w)
+  local near = false
+  if #forces == 0 then return false end
+  for _, e in pairs(center.surface.find_entities_filtered({position = pos, radius = radius or B.LURE_RADIUS, type = "unit", force = forces})) do
+    near = true
+    local un = e.unit_number
+    if un and not storage.claimed[un] and not is_immune(un, tick) then
+      local d = dist(e.position, pos)
+      if d > wake and wants(e, d) then
+        local rec = entrance(w, e)
+        rec.drawing = d > B.SLEEP_RADIUS and proto_info(e).ranged
+        if rec.drawing then start_move(w, rec, d - (B.SLEEP_RADIUS - 0.5)) end
+      end
+    end
   end
-  return false
+  return near
 end
 
 local function scan_idle()
@@ -434,6 +599,7 @@ local function scan_idle()
         local forces = enemy_forces(center.force)
         if #forces > 0 and anything_in_range(center, forces) then
           activate(player, center)
+          catch_new(storage.wearers[player.index], forces)
         end
       end
     end
@@ -465,17 +631,23 @@ local function pulse(w, eq)
     if not (e and e.valid) then
       destroy(rec.swirl); w.held[un] = nil; unclaim(un)
     else
-      local d = dist(rec.home, pos)
+      local d = dist(rec.walk and e.position or rec.home, pos)
       local ranged = proto_info(e).ranged
       if d > (ranged and B.LURE_RADIUS or B.SLEEP_RADIUS) + 2 then
         full_wake_unit(w, un, rec, false); w.held[un] = nil
+      elseif tick - (rec.since or tick) >= trance_ticks() then
+        -- The trance wears off: it can't be kept under forever by backing away.
+        full_wake_unit(w, un, rec, true); w.held[un] = nil
       elseif d <= wake then
         full_wake_unit(w, un, rec, true); w.held[un] = nil
       else
-        rec.drawing = d > B.SLEEP_RADIUS
-        if not rec.drawing and rec.scuttle_left <= 0 then
+        rec.drawing = d > B.SLEEP_RADIUS and ranged
+        local moving = rec.walk or rec.scuttle_left > 0
+        if rec.drawing and not moving then
+          start_move(w, rec, d - (B.SLEEP_RADIUS - 0.5))
+        elseif not rec.drawing and not moving then
           if math.random() < rec.chance then
-            rec.scuttle_left = B.SCUTTLE_DISTANCE
+            start_move(w, rec, B.SCUTTLE_DISTANCE)
             rec.chance = B.SCUTTLE_CHANCE
           else
             rec.chance = math.min(1, rec.chance + proto_info(e).growth)
@@ -487,20 +659,7 @@ local function pulse(w, eq)
   end
 
   -- New units, and whether anything is still close enough to keep singing.
-  local near = false
-  if #forces > 0 then
-    for _, e in pairs(surface.find_entities_filtered({position = pos, radius = B.LURE_RADIUS, type = "unit", force = forces})) do
-      local d = dist(e.position, pos)
-      if wants(e, d) then
-        near = true
-        local un = e.unit_number
-        if un and not storage.claimed[un] and not is_immune(un, tick) and d > wake then
-          local rec = entrance(w, e)
-          rec.drawing = d > B.SLEEP_RADIUS
-        end
-      end
-    end
-  end
+  local near = catch_new(w, forces)
 
   -- Worms: hushed while the wearer stays in range and the song lasts.
   for un, rec in pairs(w.worms) do
@@ -527,6 +686,7 @@ local function pulse(w, eq)
     w.idle_pulses = w.idle_pulses + 1
   else
     w.idle_pulses = 0
+    w.last_near = tick
   end
   if w.idle_pulses >= B.IDLE_PULSES then
     w.winding = true
@@ -534,29 +694,34 @@ local function pulse(w, eq)
   w.next_beat = tick + B.PULSE_TICKS
 end
 
--- Between pulses: spitters drawn in, scuttles, twitching.
+-- Between pulses: walking (every tick), gliding and twitching.
 local function between_pulses(w, tick)
-  if tick % B.MOVE_TICKS ~= 0 then return end
   local pos = w.center.position
   local wake = wake_distance(w)
+  local step_tick = tick % B.MOVE_TICKS == 0
   local twitch = tick % B.JITTER_TICKS == 0
   for un, rec in pairs(w.held) do
     local e = rec.entity
     if e and e.valid then
-      if rec.drawing then
-        glide(w, rec, B.DRAW_SPEED * B.MOVE_TICKS)
-        if dist(rec.home, pos) <= B.SLEEP_RADIUS then rec.drawing = false end
+      if rec.walk then
+        update_walk(w, rec, tick)
       elseif rec.scuttle_left > 0 then
-        local moved = glide(w, rec, math.min(rec.scuttle_left, B.SCUTTLE_SPEED * B.MOVE_TICKS))
-        rec.scuttle_left = moved > 0 and (rec.scuttle_left - moved) or 0
+        if step_tick then
+          local speed = rec.drawing and B.DRAW_SPEED or B.SCUTTLE_SPEED
+          local moved = glide(w, rec, math.min(rec.scuttle_left, speed * B.MOVE_TICKS))
+          rec.scuttle_left = moved > 0 and (rec.scuttle_left - moved) or 0
+        end
       elseif twitch then
-        local struggle = math.min(1, rec.chance / 0.6)
-        local amp = B.JITTER + B.JITTER_STRUGGLE * struggle
+        local amp = B.JITTER + B.JITTER_STRUGGLE * struggle(rec)
         e.teleport({x = rec.home.x + (math.random() * 2 - 1) * amp,
                     y = rec.home.y + (math.random() * 2 - 1) * amp})
       end
-      if dist(rec.home, pos) <= wake then
-        full_wake_unit(w, un, rec, true); w.held[un] = nil
+      if not rec.walk then
+        local d = dist(rec.home, pos)
+        if rec.drawing and d <= B.SLEEP_RADIUS then rec.drawing = false end
+        if d <= wake then
+          full_wake_unit(w, un, rec, true); w.held[un] = nil
+        end
       end
     end
   end
@@ -600,6 +765,24 @@ local function tick_wearer(w, tick)
       if not storage.wearers[w.player_index] then return end
     end
   end
+  -- Biters arriving at the sleep layer are caught right at its edge (checked every few
+  -- ticks); the lure layer is swept less often, since spitters are drawn in anyway.
+  if tick % B.LURE_SCAN_TICKS == 0 then
+    if catch_new(w, enemy_forces(w.center.force)) then w.last_near = tick end
+  elseif tick % B.CATCH_TICKS == 0 then
+    if catch_new(w, enemy_forces(w.center.force), B.SLEEP_RADIUS + B.CATCH_MARGIN) then w.last_near = tick end
+  end
+
+  -- Nothing within the lure radius for a moment (say, you jetpacked away): wind down
+  -- straight away rather than waiting for the next pulse. Anything left behind wakes.
+  if tick - (w.last_near or tick) >= B.IDLE_TICKS then
+    release_all(w, false)
+    play(w, "wp-lullaby-stop")
+    w.winding = true
+    w.fade_from = tick
+    update_visuals(w, tick)
+    return
+  end
   between_pulses(w, tick)
   if tick % 2 == 0 then update_visuals(w, tick) end
 end
@@ -609,7 +792,9 @@ end
 ---------------------------------------------------------------------------
 
 script.on_init(init_storage)
+script.on_load(function() view_cache = nil end)
 script.on_configuration_changed(function()
+  view_cache = nil
   init_storage()
   storage.proto = {}
   -- Redraw rays (layer or blend may have changed) and move any 0.1 lured spitters in.
@@ -618,8 +803,16 @@ script.on_configuration_changed(function()
       for un, rec in pairs(w.lured) do full_wake_unit(w, un, rec, false) end
       w.lured = nil
     end
+    local everyone = {}
+    for _, p in pairs(game.connected_players) do everyone[#everyone + 1] = p.index end
+    for _, list in pairs({w.held, w.worms}) do
+      for _, rec in pairs(list) do
+        if rec.swirl and rec.swirl.valid then rec.swirl.visible = true; rec.swirl.players = everyone end
+      end
+    end
     for _, rec in pairs(w.held) do
       rec.scuttle_left = rec.scuttle_left or 0
+      rec.since = rec.since or game.tick
       rec.home = rec.home or (rec.entity and rec.entity.valid and rec.entity.position)
     end
     if w.center and w.center.valid then
@@ -666,7 +859,28 @@ script.on_event(defines.events.on_object_destroyed, function(event)
   end
 end)
 
+-- Turning the cooldown off forgets every current immunity and hushed worm straight away.
+-- Re-apply who can see the effects to everything currently drawn.
+local function refresh_view()
+  view_cache = nil
+  for _, w in pairs(storage.wearers) do
+    apply_view(w.rays, true); apply_view(w.bloom, true); apply_view(w.ray_light, true); apply_view(w.glow, true)
+    apply_view(w.rays_b, true); apply_view(w.bloom_b, true)
+  end
+end
+
+script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+  if event.setting == "wp-lullaby-disable-cooldown" and cooldown_disabled() then
+    storage.immune = {}
+    storage.worms_done = {}
+  end
+  if event.setting == "wp-lullaby-graphics" then refresh_view() end
+end)
+
+script.on_event(defines.events.on_player_joined_game, refresh_view)
+
 script.on_event(defines.events.on_player_left_game, function(event)
   local w = storage.wearers[event.player_index]
   if w then shut_down(w) end
+  refresh_view()
 end)

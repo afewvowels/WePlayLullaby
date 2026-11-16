@@ -110,6 +110,32 @@ data:extend({
     flags = {"no-crop"},
   },
 
+  -- Second colour: the bands between the rays (same timing), and its bloom.
+  {
+    type = "animation",
+    name = "wp-lullaby-rays-b",
+    filename = MOD .. "/graphics/entity/lullaby-rays-b.png",
+    width = 384,
+    height = 384,
+    frame_count = 40,
+    line_length = 8,
+    priority = "medium",
+    blend_mode = "additive",
+    flags = {"no-crop"},
+  },
+  {
+    type = "animation",
+    name = "wp-lullaby-rays-b-bloom",
+    filename = MOD .. "/graphics/entity/lullaby-rays-b-bloom.png",
+    width = 192,
+    height = 192,
+    frame_count = 40,
+    line_length = 8,
+    priority = "medium",
+    blend_mode = "additive",
+    flags = {"no-crop"},
+  },
+
   -- Overhead swirl: 16 frames, loops as it spins (built by tools/lullaby_swirl.py).
   {
     type = "animation",

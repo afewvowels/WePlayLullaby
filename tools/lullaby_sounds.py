@@ -1,6 +1,7 @@
 """Build Lullaby's sounds from the Brass_Swell_5.wav clip.
 
-Usage: python3 lullaby_sounds.py <Brass_Swell_5.wav> <out_dir>
+Usage: python lullaby_sounds.py <Brass_Swell_5.wav> [out_dir]   (default out_dir: ../sounds next to this script)
+Needs: numpy, scipy (pip install numpy scipy) and ffmpeg on your PATH (for the .ogg files)
 
 The clip is a dense, steady brass pad (~0.1-5.1 s) with a natural release
 (~5.1-6.3 s). Everything is timed in game ticks (60 per second):
@@ -23,7 +24,12 @@ from scipy import signal
 SR = 44100
 TICK = SR / 60.0
 
-src, out_dir = sys.argv[1], sys.argv[2]
+if len(sys.argv) < 2:
+    print(__doc__)
+    sys.exit(1)
+src = sys.argv[1]
+out_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sounds"))
 os.makedirs(out_dir, exist_ok=True)
 
 w = wave.open(src)

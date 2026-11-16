@@ -1,6 +1,9 @@
 """Entranced overhead effect: a line swirling upwards like a mini tornado.
 
-Usage: python3 lullaby_swirl.py <out_dir>
+Usage: python lullaby_swirl.py [out_dir] [--variants]
+  Default out_dir: ../graphics/entity next to this script. Writes lullaby-swirl.png
+  (the single swirl the mod uses); --variants also writes the double and tight ones.
+Needs: numpy, pillow  (pip install numpy pillow)
 
 Writes, for each variant, a white + alpha sprite sheet (tinted in game) of
 FRAMES frames that loops seamlessly as the coil spins, plus preview GIFs.
@@ -66,12 +69,16 @@ def rgba(alpha):
 
 
 if __name__ == "__main__":
-    out = sys.argv[1]
+    here = os.path.dirname(os.path.abspath(__file__))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    out = args[0] if args else os.path.normpath(os.path.join(here, "..", "graphics", "entity"))
+    variants = VARIANTS if "--variants" in sys.argv else {"single": VARIANTS["single"]}
     os.makedirs(out, exist_ok=True)
-    for name, v in VARIANTS.items():
+    for name, v in variants.items():
         frames = [rgba(render(i, **v)) for i in range(FRAMES)]
         sheet = Image.new("RGBA", (SIZE * 8, SIZE * ((FRAMES + 7) // 8)))
         for i, f in enumerate(frames):
             sheet.paste(f, ((i % 8) * SIZE, (i // 8) * SIZE))
-        sheet.save(os.path.join(out, f"lullaby-swirl-{name}.png"), optimize=True)
-    print("ok")
+        path = os.path.join(out, "lullaby-swirl.png" if name == "single" else f"lullaby-swirl-{name}.png")
+        sheet.save(path, optimize=True)
+        print("  ->", path)
