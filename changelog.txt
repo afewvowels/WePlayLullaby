@@ -1,0 +1,60 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.3.1
+Date: 2026-11-16
+  Graphics:
+    - Depth: the rays, bloom and night light are brightest at the bottom of the screen (nearest the camera) and fade to half brightness toward the top.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.0
+Date: 2026-11-16
+  Features:
+    - The rays glow onto whatever's underneath: a soft additive bloom around the rays in daylight, and a ray-shaped light at night that lights up the ground, buildings and biters under the rays.
+    - New map setting: Pulse brightening (0-100 %, default 50). 0 gives a steady glow with no pulsing.
+  Changes:
+    - Gentler pulses: instead of a sharp flash, each pulse is a soft swell that rises and falls over 40 ticks, once a second, and is about half as strong.
+    - Smaller round light on the wearer, since the rays now carry most of the light.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.4
+Date: 2026-11-16
+  Graphics:
+    - Back to the softer, smokier ray noise from 0.2.2 with a gentle contrast boost.
+    - The smoke now moves: two layers drift and crossfade so patches grow, shrink and shift, looping seamlessly with the animation.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.3
+Date: 2026-11-16
+  Graphics:
+    - Higher-contrast ray noise: patches now range from full brightness down to under a fifth.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.2
+Date: 2026-11-16
+  Changes:
+    - Lullaby now plays only while biters are within 9 tiles or spitters within 20 (entranced or not). Worms alone no longer wake it up or keep it playing, and it winds down 2 pulses after the last biter or spitter is out of range.
+  Graphics:
+    - Bigger, darker opacity patches in the rays: patches are twice the size, the dim parts drop to about a third, and more of each ray is dim.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.1
+Date: 2026-11-16
+  Graphics:
+    - Rays have patchy, uneven opacity (fixed to the ground, like a rough surface catching the light) and ragged edges (which travel with the rays).
+---------------------------------------------------------------------------------------------------
+Version: 0.2.0
+Date: 2026-11-16
+  Changes:
+    - Spitters in the lure layer (20 tiles) are now entranced too: frozen, with a swirl, and drawn in by the song until they're in the sleep layer. They can't fire while entranced.
+    - Spitters inch closer like biters, all the way to point blank (2 tiles, 3 in a vehicle) before they wake.
+    - All movement while entranced is scripted, so scuttles stop where they should. Fixes biters closing the gap in a second or two.
+    - Entranced enemies won't glide through walls, buildings, trees, rocks or water.
+    - Slower, bigger lurches: a scuttle is 2 tiles. A biter that falls asleep 9 tiles out takes about 12-22 s to reach you (behemoths about 9-14 s).
+    - Rays now draw above ore, rocks and trees, with additive blending so they look like projected light.
+    - Rays are warped as if projected over bumpy ground, with an uneven outer edge. Rotation is baked into the animation so the bumps stay put while the rays sweep across them.
+---------------------------------------------------------------------------------------------------
+Version: 0.1.0
+Date: 2026-11-16
+  Features:
+    - First pass: Lullaby personal equipment (2x2, one per grid).
+    - Sleep layer: biters and spitters within 9 tiles are held in place and twitch. Each pulse they may scuttle closer; the chance builds every pulse they stay put.
+    - Siren song: spitters within 20 tiles walk in without attacking until they fall asleep.
+    - Worm hush: worms within 50 tiles stop firing while the song lasts.
+    - Full wakes (reached you, left behind, or the song stopped) grant immunity. A missed pulse wakes everyone.
+    - Gold twisted sunburst on the ground with a travelling jagged wave, soft gold glow, light blue swirls over entranced enemies.
+    - Sounds built from a brass pad: swell-in, crossfading pulses with a sub-bass thrum, turntable run-down and a record scratch.
+    - Map settings: immunity after waking (0-60 s, default 30), worms can be re-entranced (default off).

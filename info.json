@@ -1,0 +1,9 @@
+{
+  "name": "WePlayLullaby",
+  "version": "0.3.1",
+  "title": "WePlay: Lullaby -- Crowd Control Equipment",
+  "author": "afewvowels",
+  "factorio_version": "2.1",
+  "dependencies": ["base >= 2.1.0"],
+  "description": "A gramophone backpack that sings nearby biters to sleep, lures spitters in close and hushes worms. They wake in fits and starts and creep closer, so you get total freedom to stand around... for a few seconds."
+}
